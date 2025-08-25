@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-7777}:7777"
+    env_file:
+      - .env
+    environment:
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET}
+      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-http://localhost:7777/auth/callback}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PORT: ${PORT:-7777}
