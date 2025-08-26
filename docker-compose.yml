@@ -4,13 +4,12 @@ services:
     build: .
     ports:
       - "${PORT:-7777}:7777"
-    env_file:
-      - .env
     environment:
-      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY}
-      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET}
-      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-http://localhost:7777/auth/callback}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      PORT: ${PORT:-7777}
+      TIKTOK_CLIENT_KEY: "${TIKTOK_CLIENT_KEY:-your_tiktok_client_key}"
+      TIKTOK_CLIENT_SECRET: "${TIKTOK_CLIENT_SECRET:-your_tiktok_client_secret}"
+      TIKTOK_REDIRECT_URI: "${TIKTOK_REDIRECT_URI:-http://localhost:7777/auth/callback}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:-change_me}"
+      PORT: "${PORT:-7777}"
+      VIDEO_DIR: "${VIDEO_DIR:-./videos}"
     volumes:
       - "${VIDEO_DIR:-./videos}:/videos:ro"

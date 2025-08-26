@@ -148,6 +148,8 @@ Visit `http://localhost:[port]/auth/login` to start the OAuth2 flow!
 
 ### Run with Docker Compose
 
+Set your TikTok credentials and optional `VIDEO_DIR` in a `.env` file or directly under the `environment` section of `docker-compose.yml`, then start the service:
+
 ```bash
 docker-compose up --build
 ```
