@@ -65,7 +65,6 @@ Thumbs.db
 tokens.encrypted.json
 
 # Docker
-.dockerignore
 
 # Temporary files
 tmp/

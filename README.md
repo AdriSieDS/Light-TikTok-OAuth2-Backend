@@ -37,6 +37,8 @@ I created this mostly to workaround the issue of n8n TikTok OAuth2 flow not work
 
 #### Example Workflow
 
+When running with Docker, set the `VIDEO_DIR` variable in your `.env` file. That directory on your host is mounted into the container at `/videos`. Use paths within `/videos` when referencing files.
+
 ```bash
 # One-time OAuth2 authentication
 curl http://localhost:7777/auth/login
@@ -48,7 +50,7 @@ curl -X GET http://localhost:7777/creator-info
 curl -X POST http://localhost:7777/video/upload \
   -H "Content-Type: application/json" \
   -d '{
-    "file_path": "/home/user/videos/my_video.mp4",
+    "file_path": "/videos/my_video.mp4",
   }'
 
 # and check upload status at (replace with actual publish_id):
@@ -86,7 +88,7 @@ const uploadResponse = await fetch('http://localhost:7777/video/upload', {
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    file_path: '/path/to/video.mp4',
+    file_path: '/videos/my_video.mp4',
   })
 });
 const uploadData = await uploadResponse.json();
@@ -129,6 +131,7 @@ Then edit `.env` with your credentials:
 | `TIKTOK_REDIRECT_URI` | ✅ | OAuth2 redirect URI. Where TikTok will send redirect info (eg. http://localhost:7777/auth/callback) |
 | `PORT` | ❌ | Server port (default: 7777) |
 | `ENCRYPTION_KEY` | ❌ | Encryption key for token storage |
+| `VIDEO_DIR` | ❌ | Host directory with videos to mount at `/videos` in the container |
 
 
 ### 4. Start the Server
@@ -142,6 +145,14 @@ npm start
 ```
 
 Visit `http://localhost:[port]/auth/login` to start the OAuth2 flow!
+
+### Run with Docker Compose
+
+```bash
+docker-compose up --build
+```
+
+The directory specified in `VIDEO_DIR` will be available inside the container at `/videos`. Use that path when providing `file_path` values to the upload endpoint.
 
 
 ### Server Management
