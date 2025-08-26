@@ -3,12 +3,15 @@ services:
   api:
     build: .
     ports:
-      - "${PORT:-7777}:7777"
-    env_file:
-      - .env
+      - "7777:7777"
+    
     environment:
-      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY}
-      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET}
-      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-http://localhost:7777/auth/callback}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      PORT: ${PORT:-7777}
+      TIKTOK_CLIENT_KEY: sbawk1jt6ulu0upf8i
+      TIKTOK_CLIENT_SECRET: rb4QyOsIifJ4Qj9dkYK2UVe2KqbEtyQ2
+      TIKTOK_REDIRECT_URI: http://localhost:7777/auth/callback
+      ENCRYPTION_KEY: 1eaf785d44a7f325fa4f3a3190d3122f7ecdee8161ef18c5aa124f018c8f68d1
+      PORT: 7777
+      VIDEO_DIR: "/Users/tanja/n8n/files"
+    volumes:
+      - "/Users/tanja/n8n/files:/videos:ro"
+
