@@ -7,7 +7,7 @@ const SecureTokenStorage = require('./tokenStorage');
 const fs = require('fs');
 const path = require('path');
 // Fixed chunk size for video uploads (10MB)
-const CHUNK_SIZE = 5 * 1024 * 1024;
+const CHUNK_SIZE = 10 * 1024 * 1024
 
 const app = express();
 const PORT = process.env.PORT || 7777;
