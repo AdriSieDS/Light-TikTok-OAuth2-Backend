@@ -60,8 +60,10 @@ curl "http://localhost:7777/video/status?publish_id=abc123def456"
 This backend implements video upload function following TikTok's two-step process:
 
 1. **Initialize Upload**: The server calls TikTok's initialization endpoint with video metadata
-2. **Upload File**: The video file is uploaded to TikTok's designated URL
+2. **Upload File**: The video file is uploaded to TikTok's designated URL in 5MB chunks using `Content-Range` headers
 3. **Status Tracking**: Use the returned `publish_id` to track upload progress
+
+Each chunk is 5MB (the final or only chunk may be smaller if the file is less than 5MB) to comply with TikTok's upload requirements.
 
 (Video upload works fine by direct video posting only supports private posting. Reason [here](https://community.n8n.io/t/http-request-node-not-sending-authorization-header-despite-selecting-connected-oauth2-credential-tiktok-api/99963/4) and [here](https://developers.tiktok.com/doc/content-sharing-guidelines#:~:text=Not%20acceptable%3A%20A%20utility%20tool%20to%20help%20upload%20contents%20to%20the%20account(s)%20you%20or%20your%20team%20manages.%20%E2%9D%8C))
 
