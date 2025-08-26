@@ -7,7 +7,7 @@ const SecureTokenStorage = require('./tokenStorage');
 const fs = require('fs');
 const path = require('path');
 // Fixed chunk size for video uploads (10MB)
-const CHUNK_SIZE = 10 * 1024 * 1024;
+const CHUNK_SIZE = 5 * 1024 * 1024;
 
 const app = express();
 const PORT = process.env.PORT || 7777;
@@ -268,10 +268,8 @@ app.post('/video/direct-post', async (req, res) => {
     const stats = fs.statSync(file_path);
     const fileSize = stats.size;
     const chunkSize = Math.min(CHUNK_SIZE, fileSize);
-    let totalChunkCount = 0;
-    for (let offset = 0; offset < fileSize; offset += chunkSize) {
-      totalChunkCount++;
-    }
+    const totalChunkCount = Math.ceil(fileSize / chunkSize);
+    console.log('Chunk parameters:', { fileSize, chunkSize, totalChunkCount });
 
     // Step 1: Initialize video upload
     console.log('Initializing video upload...');
@@ -398,10 +396,7 @@ app.post('/video/upload', async (req, res) => {
     const stats = fs.statSync(file_path);
     const fileSize = stats.size;
     const chunkSize = Math.min(CHUNK_SIZE, fileSize);
-    let totalChunkCount = 0;
-    for (let offset = 0; offset < fileSize; offset += chunkSize) {
-      totalChunkCount++;
-    }
+    const totalChunkCount = Math.ceil(fileSize / chunkSize);
 
     console.log('Starting video upload process...');
     console.log('File info:', { path: file_path, size: fileSize, size_mb: (fileSize / 1024 / 1024).toFixed(2) });
