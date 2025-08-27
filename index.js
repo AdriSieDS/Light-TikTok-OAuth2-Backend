@@ -5,9 +5,72 @@ const qs = require('querystring');
 const crypto = require('crypto');
 const SecureTokenStorage = require('./tokenStorage');
 const fs = require('fs');
-const path = require('path');
-// Fixed chunk size for video uploads (10MB)
-const CHUNK_SIZE = 10 * 1024 * 1024
+
+// Chunk upload constraints
+const MIN_CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
+const MAX_CHUNK_COUNT = 1000;
+
+// Calculate chunk size and total chunk count based on TikTok API rules
+function calculateChunkParams(fileSize) {
+  if (fileSize < MIN_CHUNK_SIZE) {
+    return { chunkSize: fileSize, totalChunkCount: 1 };
+  }
+
+  if (fileSize <= MAX_CHUNK_SIZE) {
+    return { chunkSize: fileSize, totalChunkCount: 1 };
+  }
+
+  let chunkSize = MAX_CHUNK_SIZE;
+  let totalChunkCount = Math.floor(fileSize / chunkSize);
+
+  if (totalChunkCount === 1) {
+    // For files just over 64MB ensure at least two chunks
+    chunkSize = Math.floor(fileSize / 2);
+    if (chunkSize < MIN_CHUNK_SIZE) chunkSize = MIN_CHUNK_SIZE;
+    totalChunkCount = Math.floor(fileSize / chunkSize);
+  }
+
+  if (totalChunkCount > MAX_CHUNK_COUNT) {
+    chunkSize = Math.ceil(fileSize / MAX_CHUNK_COUNT);
+    if (chunkSize < MIN_CHUNK_SIZE) chunkSize = MIN_CHUNK_SIZE;
+    if (chunkSize > MAX_CHUNK_SIZE) chunkSize = MAX_CHUNK_SIZE;
+    totalChunkCount = Math.floor(fileSize / chunkSize);
+    if (totalChunkCount > MAX_CHUNK_COUNT) {
+      throw new Error('Video requires more than 1000 chunks');
+    }
+  }
+
+  return { chunkSize, totalChunkCount };
+}
+
+// Upload file to TikTok using sequential chunk uploads
+async function uploadFileChunks(uploadUrl, filePath, fileSize, chunkSize, totalChunkCount) {
+  const fd = fs.openSync(filePath, 'r');
+  let offset = 0;
+  try {
+    for (let i = 0; i < totalChunkCount; i++) {
+      const isLast = i === totalChunkCount - 1;
+      const size = isLast ? fileSize - offset : chunkSize;
+      const buffer = Buffer.alloc(size);
+      fs.readSync(fd, buffer, 0, size, offset);
+      const start = offset;
+      const end = offset + size - 1;
+      await axios.put(uploadUrl, buffer, {
+        headers: {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Content-Type': 'video/mp4',
+          'Content-Length': size
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      });
+      offset += size;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 7777;
@@ -267,8 +330,7 @@ app.post('/video/direct-post', async (req, res) => {
     // Get file stats
     const stats = fs.statSync(file_path);
     const fileSize = stats.size;
-    const chunkSize = Math.min(CHUNK_SIZE, fileSize);
-    const totalChunkCount = Math.ceil(fileSize / chunkSize);
+    const { chunkSize, totalChunkCount } = calculateChunkParams(fileSize);
     console.log('Chunk parameters:', { fileSize, chunkSize, totalChunkCount });
 
     // Step 1: Initialize video upload
@@ -304,22 +366,7 @@ app.post('/video/direct-post', async (req, res) => {
 
     // Step 2: Upload video file in chunks
     console.log('Uploading video file in chunks...');
-    let offset = 0;
-    const stream = fs.createReadStream(file_path, { highWaterMark: chunkSize });
-    for await (const chunk of stream) {
-      const start = offset;
-      const end = offset + chunk.length - 1;
-      await axios.put(upload_url, chunk, {
-        headers: {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Content-Type': 'video/mp4',
-          'Content-Length': chunk.length
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
-      });
-      offset += chunk.length;
-    }
+    await uploadFileChunks(upload_url, file_path, fileSize, chunkSize, totalChunkCount);
 
     console.log('Video upload requested. Check status at http://localhost:${PORT}/video/status?publish_id=${publish_id}');
 
@@ -395,8 +442,7 @@ app.post('/video/upload', async (req, res) => {
     // Get file stats
     const stats = fs.statSync(file_path);
     const fileSize = stats.size;
-    const chunkSize = Math.min(CHUNK_SIZE, fileSize);
-    const totalChunkCount = Math.ceil(fileSize / chunkSize);
+    const { chunkSize, totalChunkCount } = calculateChunkParams(fileSize);
 
     console.log('Starting video upload process...');
     console.log('File info:', { path: file_path, size: fileSize, size_mb: (fileSize / 1024 / 1024).toFixed(2) });
@@ -426,22 +472,7 @@ app.post('/video/upload', async (req, res) => {
 
     // Step 2: Upload video file in chunks to TikTok's designated URL
     console.log('Step 2: Uploading video file in chunks...');
-    let offset = 0;
-    const stream = fs.createReadStream(file_path, { highWaterMark: chunkSize });
-    for await (const chunk of stream) {
-      const start = offset;
-      const end = offset + chunk.length - 1;
-      await axios.put(upload_url, chunk, {
-        headers: {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Content-Type': 'video/mp4',
-          'Content-Length': chunk.length
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
-      });
-      offset += chunk.length;
-    }
+    await uploadFileChunks(upload_url, file_path, fileSize, chunkSize, totalChunkCount);
 
     console.log('Video uploaded to inbox successfully');
 
