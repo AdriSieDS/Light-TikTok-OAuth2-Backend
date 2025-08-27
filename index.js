@@ -12,33 +12,29 @@ const MAX_CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
 const MAX_CHUNK_COUNT = 1000;
 
 // Calculate chunk size and total chunk count based on TikTok API rules
+// - Minimum chunk size is 5MB
+// - Maximum chunk size is 64MB
+// - Total chunk count must not exceed 1000
+// The API expects files larger than 5MB to be split into multiple chunks.
+// Each chunk (except the last) should use the same chunk size.
 function calculateChunkParams(fileSize) {
-  if (fileSize < MIN_CHUNK_SIZE) {
+  // Files smaller than the minimum chunk size can be uploaded in a single chunk
+  if (fileSize <= MIN_CHUNK_SIZE) {
     return { chunkSize: fileSize, totalChunkCount: 1 };
   }
 
-  if (fileSize <= MAX_CHUNK_SIZE) {
-    return { chunkSize: fileSize, totalChunkCount: 1 };
-  }
+  // Start with the minimum chunk size
+  let chunkSize = MIN_CHUNK_SIZE;
+  let totalChunkCount = Math.ceil(fileSize / chunkSize);
 
-  let chunkSize = MAX_CHUNK_SIZE;
-  let totalChunkCount = Math.floor(fileSize / chunkSize);
-
-  if (totalChunkCount === 1) {
-    // For files just over 64MB ensure at least two chunks
-    chunkSize = Math.floor(fileSize / 2);
-    if (chunkSize < MIN_CHUNK_SIZE) chunkSize = MIN_CHUNK_SIZE;
-    totalChunkCount = Math.floor(fileSize / chunkSize);
+  // Increase the chunk size if we exceed the maximum allowed chunk count
+  while (totalChunkCount > MAX_CHUNK_COUNT && chunkSize < MAX_CHUNK_SIZE) {
+    chunkSize = Math.min(chunkSize * 2, MAX_CHUNK_SIZE);
+    totalChunkCount = Math.ceil(fileSize / chunkSize);
   }
 
   if (totalChunkCount > MAX_CHUNK_COUNT) {
-    chunkSize = Math.ceil(fileSize / MAX_CHUNK_COUNT);
-    if (chunkSize < MIN_CHUNK_SIZE) chunkSize = MIN_CHUNK_SIZE;
-    if (chunkSize > MAX_CHUNK_SIZE) chunkSize = MAX_CHUNK_SIZE;
-    totalChunkCount = Math.floor(fileSize / chunkSize);
-    if (totalChunkCount > MAX_CHUNK_COUNT) {
-      throw new Error('Video requires more than 1000 chunks');
-    }
+    throw new Error('Video requires more than 1000 chunks');
   }
 
   return { chunkSize, totalChunkCount };
