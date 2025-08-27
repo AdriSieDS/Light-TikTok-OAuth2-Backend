@@ -331,7 +331,7 @@ app.post('/video/direct-post', async (req, res) => {
 
     // Step 1: Initialize video upload
     console.log('Initializing video upload...');
-    const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+    const initRequestData = {
       post_info: {
         title: title,
         privacy_level: 'PUBLIC_TO_EVERYONE',
@@ -346,7 +346,9 @@ app.post('/video/direct-post', async (req, res) => {
         chunk_size: chunkSize,
         total_chunk_count: totalChunkCount
       }
-    }, {
+    };
+    console.log('data', JSON.stringify(initRequestData, null, 2));
+    const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/video/init/', initRequestData, {
       headers: {
         Authorization: `Bearer ${access_token}`,
         'Content-Type': 'application/json; charset=UTF-8',
@@ -445,14 +447,16 @@ app.post('/video/upload', async (req, res) => {
 
     // Step 1: Initialize video upload
     console.log('Step 1: Initializing video upload...');
-    const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', {
+    const initRequestData = {
       source_info: {
         source: 'FILE_UPLOAD',
         video_size: fileSize,
         chunk_size: chunkSize,
         total_chunk_count: totalChunkCount
       }
-    }, {
+    };
+    console.log('data', JSON.stringify(initRequestData, null, 2));
+    const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', initRequestData, {
       headers: {
         Authorization: `Bearer ${access_token}`,
         'Content-Type': 'application/json; charset=UTF-8',
