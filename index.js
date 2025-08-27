@@ -12,29 +12,44 @@ const MAX_CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
 const MAX_CHUNK_COUNT = 1000;
 
 // Calculate chunk size and total chunk count based on TikTok API rules
-// - Minimum chunk size is 5MB
-// - Maximum chunk size is 64MB
-// - Total chunk count must not exceed 1000
-// The API expects files larger than 5MB to be split into multiple chunks.
-// Each chunk (except the last) should use the same chunk size.
+// CORRECTED VERSION: 
+// - For files <= 64MB: use single chunk (video_size = chunk_size = file_size, total_chunk_count = 1)
+// - For files > 64MB: split into multiple chunks with proper calculation
 function calculateChunkParams(fileSize) {
-  // Files smaller than the minimum chunk size can be uploaded in a single chunk
-  if (fileSize <= MIN_CHUNK_SIZE) {
-    return { chunkSize: fileSize, totalChunkCount: 1 };
+  // For files smaller or equal to 64MB, use single chunk
+  if (fileSize <= MAX_CHUNK_SIZE) {
+    return { 
+      chunkSize: fileSize, 
+      totalChunkCount: 1 
+    };
   }
 
-  // Start with the minimum chunk size
-  let chunkSize = MIN_CHUNK_SIZE;
+  // For larger files, we need to split into multiple chunks
+  // Start with optimal chunk size (try to keep it reasonable)
+  let chunkSize = Math.min(MAX_CHUNK_SIZE, Math.max(MIN_CHUNK_SIZE, Math.floor(fileSize / 10)));
+  
+  // Ensure chunk size is at least MIN_CHUNK_SIZE
+  if (chunkSize < MIN_CHUNK_SIZE) {
+    chunkSize = MIN_CHUNK_SIZE;
+  }
+  
+  // Calculate total chunks needed
   let totalChunkCount = Math.ceil(fileSize / chunkSize);
-
-  // Increase the chunk size if we exceed the maximum allowed chunk count
+  
+  // If we have too many chunks, increase chunk size
   while (totalChunkCount > MAX_CHUNK_COUNT && chunkSize < MAX_CHUNK_SIZE) {
     chunkSize = Math.min(chunkSize * 2, MAX_CHUNK_SIZE);
     totalChunkCount = Math.ceil(fileSize / chunkSize);
   }
 
+  // Final check: if still too many chunks, use max chunk size
   if (totalChunkCount > MAX_CHUNK_COUNT) {
-    throw new Error('Video requires more than 1000 chunks');
+    chunkSize = MAX_CHUNK_SIZE;
+    totalChunkCount = Math.ceil(fileSize / chunkSize);
+    
+    if (totalChunkCount > MAX_CHUNK_COUNT) {
+      throw new Error(`Video requires ${totalChunkCount} chunks, which exceeds the maximum allowed ${MAX_CHUNK_COUNT} chunks`);
+    }
   }
 
   return { chunkSize, totalChunkCount };
@@ -52,6 +67,9 @@ async function uploadFileChunks(uploadUrl, filePath, fileSize, chunkSize, totalC
       fs.readSync(fd, buffer, 0, size, offset);
       const start = offset;
       const end = offset + size - 1;
+      
+      console.log(`Uploading chunk ${i + 1}/${totalChunkCount}: ${start}-${end}/${fileSize} (${size} bytes)`);
+      
       await axios.put(uploadUrl, buffer, {
         headers: {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
@@ -327,7 +345,7 @@ app.post('/video/direct-post', async (req, res) => {
     const stats = fs.statSync(file_path);
     const fileSize = stats.size;
     const { chunkSize, totalChunkCount } = calculateChunkParams(fileSize);
-    console.log('Chunk parameters:', { fileSize, chunkSize, totalChunkCount });
+    console.log('Chunk parameters for direct post:', { fileSize, chunkSize, totalChunkCount });
 
     // Step 1: Initialize video upload
     console.log('Initializing video upload...');
@@ -343,11 +361,12 @@ app.post('/video/direct-post', async (req, res) => {
       source_info: {
         source: 'FILE_UPLOAD',
         video_size: fileSize,
-        chunk_size: fileSize,
-        total_chunk_count: 1
+        chunk_size: chunkSize,
+        total_chunk_count: totalChunkCount
       }
     };
-    console.log('data', JSON.stringify(initRequestData, null, 2));
+    console.log('Request data:', JSON.stringify(initRequestData, null, 2));
+    
     const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/video/init/', initRequestData, {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -366,7 +385,7 @@ app.post('/video/direct-post', async (req, res) => {
     console.log('Uploading video file in chunks...');
     await uploadFileChunks(upload_url, file_path, fileSize, chunkSize, totalChunkCount);
 
-    console.log('Video upload requested. Check status at http://localhost:${PORT}/video/status?publish_id=${publish_id}');
+    console.log(`Video upload completed. Check status at http://localhost:${PORT}/video/status?publish_id=${publish_id}`);
 
     // Return success response with publish_id
     res.json({
@@ -378,7 +397,11 @@ app.post('/video/direct-post', async (req, res) => {
         file_info: {
           path: file_path,
           size: fileSize,
-          size_mb: (fileSize / 1024 / 1024).toFixed(2)
+          size_mb: (fileSize / 1024 / 1024).toFixed(2),
+          chunks: {
+            chunk_size: chunkSize,
+            total_chunk_count: totalChunkCount
+          }
         }
       }
     });
@@ -443,7 +466,13 @@ app.post('/video/upload', async (req, res) => {
     const { chunkSize, totalChunkCount } = calculateChunkParams(fileSize);
 
     console.log('Starting video upload process...');
-    console.log('File info:', { path: file_path, size: fileSize, size_mb: (fileSize / 1024 / 1024).toFixed(2) });
+    console.log('File info:', { 
+      path: file_path, 
+      size: fileSize, 
+      size_mb: (fileSize / 1024 / 1024).toFixed(2),
+      chunk_size: chunkSize,
+      total_chunk_count: totalChunkCount
+    });
 
     // Step 1: Initialize video upload
     console.log('Step 1: Initializing video upload...');
@@ -455,7 +484,8 @@ app.post('/video/upload', async (req, res) => {
         total_chunk_count: totalChunkCount
       }
     };
-    console.log('data', JSON.stringify(initRequestData, null, 2));
+    console.log('Request data:', JSON.stringify(initRequestData, null, 2));
+    
     const initResponse = await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', initRequestData, {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -485,7 +515,11 @@ app.post('/video/upload', async (req, res) => {
         file_info: {
           path: file_path,
           size: fileSize,
-          size_mb: (fileSize / 1024 / 1024).toFixed(2)
+          size_mb: (fileSize / 1024 / 1024).toFixed(2),
+          chunks: {
+            chunk_size: chunkSize,
+            total_chunk_count: totalChunkCount
+          }
         },
         note: 'Video is now in TikTok inbox. User must click on inbox notifications to continue the editing flow in TikTok and complete the post.'
       }
