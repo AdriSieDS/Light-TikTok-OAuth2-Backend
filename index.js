@@ -343,8 +343,8 @@ app.post('/video/direct-post', async (req, res) => {
       source_info: {
         source: 'FILE_UPLOAD',
         video_size: fileSize,
-        chunk_size: chunkSize,
-        total_chunk_count: totalChunkCount
+        chunk_size: fileSize,
+        total_chunk_count: 1
       }
     };
     console.log('data', JSON.stringify(initRequestData, null, 2));
