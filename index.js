@@ -12,34 +12,44 @@ const MAX_CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
 const MAX_CHUNK_COUNT = 1000;
 
 // Calculate chunk size and total chunk count based on TikTok API rules
-// FIXED CHUNK SIZE VERSION: Using 10MB chunks for consistent uploads
+// CORRECTED VERSION: 
+// - For files <= 64MB: use single chunk (video_size = chunk_size = file_size, total_chunk_count = 1)
+// - For files > 64MB: split into multiple chunks with proper calculation
 function calculateChunkParams(fileSize) {
-  const FIXED_CHUNK_SIZE = 10000000; // 10MB fixed chunk size
-  
-  // For very small files (less than fixed chunk size), use single chunk
-  if (fileSize <= FIXED_CHUNK_SIZE) {
+  // For files smaller or equal to 64MB, use single chunk
+  if (fileSize <= MAX_CHUNK_SIZE) {
     return { 
       chunkSize: fileSize, 
       totalChunkCount: 1 
     };
   }
 
-  // For larger files, use fixed chunk size
-  const chunkSize = FIXED_CHUNK_SIZE;
-  const totalChunkCount = Math.ceil(fileSize / chunkSize);
+  // For larger files, we need to split into multiple chunks
+  // Start with optimal chunk size (try to keep it reasonable)
+  let chunkSize = Math.min(MAX_CHUNK_SIZE, Math.max(MIN_CHUNK_SIZE, Math.floor(fileSize / 10)));
   
-  // Safety check: ensure we don't exceed maximum allowed chunks
-  if (totalChunkCount > MAX_CHUNK_COUNT) {
-    throw new Error(`Video requires ${totalChunkCount} chunks, which exceeds the maximum allowed ${MAX_CHUNK_COUNT} chunks`);
-  }
-  
-  // Safety check: ensure chunk size is within TikTok limits
+  // Ensure chunk size is at least MIN_CHUNK_SIZE
   if (chunkSize < MIN_CHUNK_SIZE) {
-    throw new Error(`Fixed chunk size ${chunkSize} is below minimum required ${MIN_CHUNK_SIZE}`);
+    chunkSize = MIN_CHUNK_SIZE;
   }
   
-  if (chunkSize > MAX_CHUNK_SIZE) {
-    throw new Error(`Fixed chunk size ${chunkSize} exceeds maximum allowed ${MAX_CHUNK_SIZE}`);
+  // Calculate total chunks needed
+  let totalChunkCount = Math.ceil(fileSize / chunkSize);
+  
+  // If we have too many chunks, increase chunk size
+  while (totalChunkCount > MAX_CHUNK_COUNT && chunkSize < MAX_CHUNK_SIZE) {
+    chunkSize = Math.min(chunkSize * 2, MAX_CHUNK_SIZE);
+    totalChunkCount = Math.ceil(fileSize / chunkSize);
+  }
+
+  // Final check: if still too many chunks, use max chunk size
+  if (totalChunkCount > MAX_CHUNK_COUNT) {
+    chunkSize = MAX_CHUNK_SIZE;
+    totalChunkCount = Math.ceil(fileSize / chunkSize);
+    
+    if (totalChunkCount > MAX_CHUNK_COUNT) {
+      throw new Error(`Video requires ${totalChunkCount} chunks, which exceeds the maximum allowed ${MAX_CHUNK_COUNT} chunks`);
+    }
   }
 
   return { chunkSize, totalChunkCount };
@@ -342,7 +352,7 @@ app.post('/video/direct-post', async (req, res) => {
     const initRequestData = {
       post_info: {
         title: title,
-        privacy_level: 'MUTUAL_FOLLOW_FRIEND', // Für nicht-auditierte Apps
+        privacy_level: 'SELF_ONLY',
         disable_duet: false,
         disable_comment: false,
         disable_stitch: false,
